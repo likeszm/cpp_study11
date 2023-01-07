@@ -5,7 +5,10 @@
 * 1、友元函数的使用
 * 2、拷贝构造函数的使用
 * 3、const修饰指针和函数的情况
-* 
+* 4、const的bug: 对于const修饰的函数，不允许修改值，不允许调用非const方法，
+*   但是可以通过调用友元函数的方式走后门修改，所以应当不这么做
+* 5、例外：然而加上 mutable 修饰符的数据成员,对于任何情况下通过任何手段都可修改,自然此时的 const 成员函数是可以修改它的；
+* 6、实验发现，如果传入一个类，不是传地址，那么会自动调用拷贝构造函数，新构造一个临时的对象再操作
 */
 
 #include <iostream>
@@ -26,9 +29,25 @@ public:
     Line_class(const Line_class& obj);
 
     friend double visit_by_friend(Line_class temp);
+    friend class Line_friend_class;
+
+    void const_and_fun_2(void) const;
 
 private:
     double length;
+};
+
+class Line_friend_class
+{
+public:
+    double friend_class_fun(Line_class temp)
+    {
+#ifdef DEBUG && 1
+        debug_str = "friend_class_fun";
+        std::clog << "---LOG: running: " << debug_str << "()" << std::endl;
+#endif // DEBUG
+        return temp.length;
+    }
 };
 
 void constructor_test(void);
@@ -37,6 +56,7 @@ void friend_fun_test(void);
 void const_and_pointer_test(void);
 const int * const_and_fun_1(void);
 void const_and_fun_test_1(void);
+void friend_class_test(void);
 
 int count = 0;
 
@@ -47,7 +67,7 @@ int main()
     //friend_fun_test();
     //const_and_pointer_test();
     //const_and_fun_test_1();
-
+    //friend_class_test();
 
     std::cout << "\n测试完成\n";
     return 0;
@@ -118,6 +138,13 @@ const int* const_and_fun_1(void)
     return p_data;
 }
 
+void Line_class::const_and_fun_2(void) const
+{
+//    length = 2;     //报错说明const起作用了
+ //   get_length();      //报错说明即使函数内部没有修改值，但是没有const就认为可能会修改值
+    visit_by_friend(*this);     //说明友元函数还是防不住
+}
+
 
 void constructor_test(void)
 {
@@ -182,4 +209,13 @@ void const_and_fun_test_1(void)
 //    int* p_1 = p;     //此行报错，说明const保护的很好
     const int* p_1 = p; //说明const有传承性
 
+}
+
+void friend_class_test(void)
+{
+    Line_class line_1(112);
+    Line_friend_class friend_1;
+
+    std::cout << "尝试通过友元类访问: length = " << friend_1.friend_class_fun(line_1) << std::endl;
+    //根据结果发现个有趣的现象，因为传入的值不是地址，会自动调用拷贝构造函数，然后读取拷贝构造出来的数据
 }
